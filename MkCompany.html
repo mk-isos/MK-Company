@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>과제1_2021041023_김문기</title>
+    <script src="./three.js"></script>
+    <script src="./dat.gui.js"></script>
+    <script src="./OrbitControls.js"></script>
+    <script src="./GLTFLoader.js"></script>
+    <script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="webgl-output"></div>
+    <script type="module">
+      let scene;
+
+      // 광원에 대한 애니메이션 함수
+      function animateSpotlight(spotLight, target, amplitude, frequency) {
+        const clock = new THREE.Clock();
+        const position = spotLight.position.clone();
+
+        function update() {
+          const time = clock.getElapsedTime();
+          const delta = Math.sin(time * frequency) * amplitude;
+          spotLight.position.x = position.x + delta;
+        }
+
+        return update;
+      }
+
+      // Curve 정의
+      class CustomCurve extends THREE.Curve {
+        constructor(scale = 1) {
+          super();
+          this.scale = scale;
+        }
+
+        getPoint(t, optionalTarget = new THREE.Vector3()) {
+          const tx = t * 3 - 1.5;
+          const ty = Math.sin(Math.PI * tx);
+          const tz = 0;
+
+          return optionalTarget.set(tx, ty, tz).multiplyScalar(this.scale);
+        }
+      }
+      //선
+      function createCurveObject() {
+        const path = new CustomCurve(10);
+        const geometry = new THREE.TubeGeometry(path, 20, 0.2, 8, false);
+        const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.set(39, 14, 9); // 위치 조정
+        mesh.rotation.y = Math.PI * 0.5;
+        mesh.scale.set(0.5, 0.5, 0.5);
+        scene.add(mesh);
+      }
+      //표면
+      function createSurfaceObject() {
+        const geometry = new THREE.ParametricGeometry(
+          (u, v, target) => {
+            const x = u * 10 - 5;
+            const y = v * 10 - 5;
+            const z = Math.sin(u * Math.PI) * Math.cos(v * Math.PI);
+            target.set(x, y, z);
+          },
+          20,
+          20
+        );
+        const material = new THREE.MeshBasicMaterial({
+          color: 0x00ff00,
+          wireframe: true,
+        });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.set(39, 14, -3);
+        mesh.rotation.y = Math.PI * 0.5;
+        mesh.scale.set(1, 1, 1);
+        scene.add(mesh);
+      }
+
+      let robot_model; // robot_model 변수를 먼저 선언
+      let robot_mixer; // robot_mixer 변수 추가
+
+      function onDocumentMouseDown(event) {
+        event.preventDefault();
+
+        const mouse = new THREE.Vector2();
+        const raycaster = new THREE.Raycaster();
+
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+
+        // 광선과 교차하는 객체들을 찾습니다.
+        const intersects = raycaster.intersectObjects(scene.children, true);
+
+        if (intersects.length > 0) {
+          // 교차한 객체에 대한 추가적인 처리를 여기에 추가하세요.
+          // 예를 들어, console.log(intersects[0])를 사용하여 객체 정보를 콘솔에 출력할 수 있습니다.
+          console.log(intersects[0]);
+        }
+      }
+
+      function main() {
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setClearColor(new THREE.Color(0x000000));
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+
+        // default 값
+        const fov = 100;
+        const aspect = 2; // the canvas default
+        const near = 0.1;
+        const far = 100;
+
+        // 카메라 변수 선언 및 위치 설정
+        const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+        camera.position.set(0, 10, 20);
+        //camera.position.set(0, height, y_planesize);
+        class MinMaxGUIHelper {
+          // near 속성과 far 속성을 제어해줄 class
+          constructor(obj, minProp, maxProp, minDif) {
+            this.obj = obj;
+            this.minProp = minProp;
+            this.maxProp = maxProp;
+            this.minDif = minDif;
+          }
+          get min() {
+            return this.obj[this.minProp];
+          }
+          set min(v) {
+            this.obj[this.minProp] = v;
+            this.obj[this.maxProp] = Math.max(
+              this.obj[this.maxProp],
+              v + this.minDif
+            );
+          }
+          get max() {
+            return this.obj[this.maxProp];
+          }
+          set max(v) {
+            this.obj[this.maxProp] = v;
+            this.min = this.min; // this will call the min setter
+          }
+        }
+
+        function updateCamera() {
+          // 카메라 투영 매트릭스를 업데이트
+          camera.updateProjectionMatrix();
+        }
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+        function handleKeyboardInput() {
+          window.addEventListener("keydown", (event) => {
+            switch (event.code) {
+              case "KeyW":
+                camera.position.z -= 1;
+                break;
+              case "KeyS":
+                camera.position.z += 1;
+                break;
+              case "KeyA":
+                camera.position.x -= 1;
+                break;
+              case "KeyD":
+                camera.position.x += 1;
+                break;
+            }
+          });
+        }
+
+        handleKeyboardInput();
+
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color("black"); // 배경
+
+        //  판
+        var x_planesize = 80;
+        var y_planesize = 120;
+        var height = 30;
+        {
+          const loader = new THREE.TextureLoader();
+          const texture = loader.load("resources_textures/marble.jpg");
+          texture.wrapS = THREE.RepeatWrapping; // 랩핑 모드 -> texture를 무한으로 반복
+          texture.wrapT = THREE.RepeatWrapping;
+          texture.magFilter = THREE.NearestFilter; // 특정 텍스처 좌표와 가장 가까운 텍스쳐 요소의 값 리턴
+          const repeats = x_planesize / 2;
+          texture.repeat.set(repeats, repeats);
+
+          const planeGeo = new THREE.PlaneGeometry(x_planesize, y_planesize);
+          const planeMat = new THREE.MeshPhongMaterial({
+            map: texture,
+            side: THREE.DoubleSide,
+          });
+          const mesh = new THREE.Mesh(planeGeo, planeMat);
+          mesh.rotation.x = Math.PI * -0.5;
+          scene.add(mesh);
+        }
+        //xyz도우미 (도현이형의 선물 ㄷㄷ)
+        {
+          const axesHelper = new THREE.AxesHelper();
+          scene.add(axesHelper);
+        }
+
+        //정면벽
+        {
+          const loader = new THREE.TextureLoader();
+          loader.load(
+            "resources_textures/high-angle-beautiful-buildings-nighttime.jpg",
+            function (texture) {
+              const PlaneGeo = new THREE.PlaneGeometry(x_planesize, height);
+              const PlaneMat = new THREE.MeshPhongMaterial({ map: texture }); // 이미지를 텍스처로 설정
+              const mesh = new THREE.Mesh(PlaneGeo, PlaneMat);
+              mesh.position.set(0, height / 2, -y_planesize / 2);
+              scene.add(mesh);
+            }
+          );
+        }
+
+        // 왼벽
+        {
+          const loader = new THREE.TextureLoader();
+          loader.load("resources_textures/white_wall.jpg", function (texture) {
+            const PlaneGeo = new THREE.PlaneGeometry(y_planesize, height);
+            const PlaneMat = new THREE.MeshPhongMaterial({ map: texture });
+            const mesh = new THREE.Mesh(PlaneGeo, PlaneMat);
+            mesh.position.set(x_planesize / 2, height / 2, 0);
+            mesh.rotation.y = Math.PI * -0.5;
+            scene.add(mesh);
+          });
+        }
+
+        // 오른벽
+        {
+          const loader = new THREE.TextureLoader();
+          loader.load("resources_textures/white_wall.jpg", function (texture) {
+            const PlaneGeo = new THREE.PlaneGeometry(y_planesize, height);
+            const PlaneMat = new THREE.MeshPhongMaterial({ map: texture });
+            const mesh = new THREE.Mesh(PlaneGeo, PlaneMat);
+            mesh.position.set(-x_planesize / 2, height / 2, 0);
+            mesh.rotation.y = Math.PI * 0.5;
+            scene.add(mesh);
+          });
+        }
+        // 씬에 추가된 모든 Mesh에 대해 Shadow를 생성합니다.
+        scene.traverse((obj) => {
+          if (obj instanceof THREE.Mesh) {
+            obj.castShadow = true;
+            obj.receiveShadow = true;
+          }
+        });
+        // 천장
+        {
+          const loader = new THREE.TextureLoader();
+          loader.load(
+            "resources_textures/ceiling_5lighting_circles.jpg",
+            function (texture) {
+              const ceilingGeo = new THREE.PlaneGeometry(
+                x_planesize,
+                y_planesize
+              );
+              const ceilingMat = new THREE.MeshBasicMaterial({
+                map: texture, // 텍스처를 설정하여 이미지 표시
+                //side: THREE.DoubleSide, // 천장을 양면으로 표시
+              });
+              const ceilingMesh = new THREE.Mesh(ceilingGeo, ceilingMat);
+              ceilingMesh.position.set(0, height, 0);
+              ceilingMesh.rotation.x = Math.PI * 0.5; // 천장이 바닥을 향하도록 회전
+              scene.add(ceilingMesh);
+            }
+          );
+        }
+        const loader = new THREE.TextureLoader();
+
+        {
+          //그림
+          var texture = loader.load("./resources_textures/xmaswithfriends.jpg");
+          const p1Geometry = new THREE.BoxGeometry(15, 10, 2);
+          const p1Material = new THREE.MeshStandardMaterial({ map: texture });
+          const p1 = new THREE.Mesh(p1Geometry, p1Material);
+          p1.position.set(-40, 17, -32);
+          p1.castShadow = true;
+          p1.receiveShadow = true;
+          p1.rotation.y = -1.5 * Math.PI;
+          scene.add(p1);
+        }
+        {
+          //액자
+          var texture = loader.load("./resources_textures/frame.jpg");
+          const f1Geometry = new THREE.BoxGeometry(15.5, 10.5, 1.3);
+          const f1Material = new THREE.MeshStandardMaterial({ map: texture });
+          const f1 = new THREE.Mesh(f1Geometry, f1Material);
+          f1.position.set(-40, 17, -32);
+          f1.castShadow = true;
+          f1.receiveShadow = true;
+          f1.rotation.y = -1.5 * Math.PI;
+          scene.add(f1);
+        }
+        {
+          //그림
+          var texture = loader.load("./resources_textures/crayonmember.jpg");
+          const p1Geometry = new THREE.BoxGeometry(15, 10, 2);
+          const p1Material = new THREE.MeshStandardMaterial({ map: texture });
+          const p1 = new THREE.Mesh(p1Geometry, p1Material);
+          p1.position.set(-40, 17, -10);
+          p1.castShadow = true;
+          p1.receiveShadow = true;
+          p1.rotation.y = -1.5 * Math.PI;
+          scene.add(p1);
+        }
+        {
+          //액자
+          var texture = loader.load("./resources_textures/frame.jpg");
+          const f1Geometry = new THREE.BoxGeometry(15.5, 10.5, 1.3);
+          const f1Material = new THREE.MeshStandardMaterial({ map: texture });
+          const f1 = new THREE.Mesh(f1Geometry, f1Material);
+          f1.position.set(-40, 17, -10);
+          f1.castShadow = true;
+          f1.receiveShadow = true;
+          f1.rotation.y = -1.5 * Math.PI;
+          scene.add(f1);
+        }
+
+        {
+          //그림
+          var texture = loader.load("./resources_textures/startupmember.jpg");
+          const p1Geometry = new THREE.BoxGeometry(15, 10, 2);
+          const p1Material = new THREE.MeshStandardMaterial({ map: texture });
+          const p1 = new THREE.Mesh(p1Geometry, p1Material);
+          p1.position.set(-40, 17, 12);
+          p1.castShadow = true;
+          p1.receiveShadow = true;
+          p1.rotation.y = -1.5 * Math.PI;
+          scene.add(p1);
+        }
+        {
+          //액자
+          var texture = loader.load("./resources_textures/frame.jpg");
+          const f1Geometry = new THREE.BoxGeometry(15.5, 10.5, 1.3);
+          const f1Material = new THREE.MeshStandardMaterial({ map: texture });
+          const f1 = new THREE.Mesh(f1Geometry, f1Material);
+          f1.position.set(-40, 17, 12);
+          f1.castShadow = true;
+          f1.receiveShadow = true;
+          f1.rotation.y = -1.5 * Math.PI;
+          scene.add(f1);
+        }
+
+        {
+          //그림
+          var texture = loader.load("./resources_textures/daegufamily.jpg");
+          const p1Geometry = new THREE.BoxGeometry(15, 10, 2);
+          const p1Material = new THREE.MeshStandardMaterial({ map: texture });
+          const p1 = new THREE.Mesh(p1Geometry, p1Material);
+          p1.position.set(-40, 17, 34);
+          p1.castShadow = true;
+          p1.receiveShadow = true;
+          p1.rotation.y = -1.5 * Math.PI;
+          scene.add(p1);
+        }
+        {
+          //액자
+          var texture = loader.load("./resources_textures/frame.jpg");
+          const f1Geometry = new THREE.BoxGeometry(15.5, 10.5, 1.3);
+          const f1Material = new THREE.MeshStandardMaterial({ map: texture });
+          const f1 = new THREE.Mesh(f1Geometry, f1Material);
+          f1.position.set(-40, 17, 34);
+          f1.castShadow = true;
+          f1.receiveShadow = true;
+          f1.rotation.y = -1.5 * Math.PI;
+          scene.add(f1);
+        }
+        let model_loader = new THREE.GLTFLoader();
+
+        //람보르기니 아벤타토드
+        model_loader.load("gltfs/car2/scene.gltf", function (gltf) {
+          const model = gltf.scene;
+          model.scale.set(6, 6, 6);
+          model.position.set(33, 0, 41);
+          model.rotation.y = 0.5;
+          model.rotation.y = Math.PI * -0.5;
+          scene.add(model);
+        });
+        let animationAction;
+
+        //컴퓨터 없고 널은 책상
+
+        model_loader.load("./resources_gltf/desk8.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(13, 13, 13);
+          model.position.set(2, 0, -31);
+          model.rotation.y = Math.PI * 1;
+          scene.add(model);
+        });
+
+        //아이맥
+        model_loader.load("./resources_gltf/iMAC.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(0.1, 0.1, 0.1);
+          model.position.set(0, 7, -31);
+          model.rotation.y = Math.PI * 1;
+          scene.add(model);
+        });
+
+        //의자
+        model_loader.load("./resources_gltf/chair4.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(0.1, 0.1, 0.1);
+          model.position.set(7, 0, -37);
+          //model.rotation.y = Math.PI * 0.3;
+          scene.add(model);
+        });
+
+        //강아지
+        model_loader.load("./resources_gltf/dog.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(1.5, 1.5, 1.5);
+          model.position.set(-18, 0, -33);
+          model.rotation.y = Math.PI * 0.5;
+          scene.add(model);
+        });
+
+        //소파
+        model_loader.load("./resources_gltf/Sofa.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(0.01, 0.01, 0.01);
+          model.position.set(-22, 0, 5);
+          model.rotation.y = Math.PI * 0.5;
+          scene.add(model);
+        });
+
+        //소파2
+        model_loader.load("./resources_gltf/Sofa.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(0.01, 0.01, 0.01);
+          model.position.set(22, 0, 5);
+          model.rotation.y = Math.PI * -0.5;
+          scene.add(model);
+        });
+        //화분 1
+        model_loader.load("gltfs/pot1/scene.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(1.8, 1.8, 1.8);
+          model.position.set(38, 0, -50);
+          //model.rotation.y = Math.PI * 0.3;
+          scene.add(model);
+        });
+
+        //화분 2
+        model_loader.load("gltfs/pot2/scene.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(18, 18, 18);
+          model.position.set(33, 0, -50);
+          //model.rotation.y = Math.PI * 0.3;
+          scene.add(model);
+        });
+        //책장 1
+        model_loader.load("gltfs/bookcase/scene.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(9, 9, 9);
+          model.position.set(38, 0, -18);
+          model.rotation.y = Math.PI * 1;
+          scene.add(model);
+        });
+
+        //책장 2
+        model_loader.load("gltfs/bookcase2/scene.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(7, 7, 7);
+          model.position.set(38, 0, -30);
+          model.rotation.y = Math.PI * 1;
+          scene.add(model);
+        });
+        //시바견
+        model_loader.load("gltfs/dog1/scene.gltf", function (gltf) {
+          const shibaModel = gltf.scene;
+          shibaModel.scale.set(4, 4, 4);
+          shibaModel.position.set(20, 5, -31);
+          shibaModel.rotation.y = -0.5;
+          scene.add(shibaModel);
+        });
+        //트리 1
+        model_loader.load("gltfs/x-tree/scene.gltf", (gltf) => {
+          const treemodel = gltf.scene;
+          treemodel.scale.set(7, 7, 7);
+          treemodel.position.set(-33, 2, -45);
+          //model.rotation.y = Math.PI * 0.3;
+          scene.add(treemodel);
+        });
+
+        //로봇
+        model_loader.load("gltfs/robotcute/scene.gltf", function (gltf) {
+          const model = gltf.scene;
+          model.scale.set(1, 1, 1);
+          model.position.set(15, 0, -34);
+          model.rotation.y = -0.5;
+          scene.add(model);
+        });
+
+        //로봇 2 공중
+        model_loader.load("gltfs/robot2/scene.gltf", function (gltf) {
+          const model = gltf.scene;
+          model.scale.set(0.01, 0.01, 0.01);
+          model.position.set(-20, 15, -20);
+          model.rotation.y = -0.5;
+          scene.add(model);
+        });
+        //로봇 3
+        model_loader.load("gltfs/robot3/scene.gltf", function (gltf) {
+          const model = gltf.scene;
+          model.scale.set(3, 3, 3);
+          model.position.set(20, 0, 30);
+          model.rotation.y = -0.5;
+          scene.add(model);
+        });
+        //중간테이블
+        model_loader.load("./resources_gltf/table9.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(10, 10, 10);
+          model.position.set(0, -5, 3);
+          //model.rotation.y = Math.PI * 0.5;
+          scene.add(model);
+        });
+
+        //탁구대
+        model_loader.load("./gltfs/pingpong/scene.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(7, 7, 7);
+          model.position.set(-25, 0, 39);
+          //model.rotation.y = Math.PI * 0.5;
+          scene.add(model);
+        });
+        //금고
+        model_loader.load("gltfs/safe/scene.gltf", function (gltf) {
+          const model = gltf.scene;
+          model.scale.set(5, 5, 5);
+          model.position.set(37, 0, -42);
+          model.rotation.y = -1.25;
+          scene.add(model);
+        });
+        //스탠바이미
+        model_loader.load("gltfs/screen/scene.gltf", function (gltf) {
+          const model = gltf.scene;
+          model.scale.set(20, 20, 20);
+          model.position.set(0, 3.5, -17);
+          //model.rotation.y = -1.25;
+          scene.add(model);
+        });
+
+        //칠판
+        model_loader.load("gltfs/whiteboard/scene.gltf", function (gltf) {
+          const model = gltf.scene;
+          model.scale.set(0.1, 0.1, 0.1);
+          model.position.set(39, 14, 3);
+          model.rotation.y = -1.9;
+          scene.add(model);
+        });
+
+        //탁구채, 공
+        model_loader.load("gltfs/pingpongball/scene.gltf", function (gltf) {
+          const model = gltf.scene;
+          model.scale.set(0.4, 0.4, 0.4);
+          model.position.set(-24, 5.3, 33);
+          //model.rotation.y = -1.9;
+          scene.add(model);
+        });
+        /*
+        //로봇지피티
+        model_loader.load("gltfs/robot-gpt/scene.gltf", function (gltf) {
+          const model = gltf.scene;
+          model.scale.set(5, 5, 5);
+          model.position.set(0, 4, 5);
+          //model.rotation.y = -1.25;
+          scene.add(model);
+        });
+        */
+
+        model_loader.load(
+          "gltfs/robotmini/scene.gltf",
+          function (gltf) {
+            robot_model = gltf.scene;
+            robot_model.scale.set(3, 3, 3);
+            robot_model.position.set(0, 4, 5);
+            robot_model.rotation.y = Math.PI * -0.5;
+
+            ///////////////////////////////////////////////
+            // 애니메이션 클립 추출
+            const animationClip = gltf.animations[0];
+
+            // 로봇의 위치와 회전 정보를 저장할 배열
+            let robot_positions = [];
+            let robot_rotations = [];
+            // 클릭 이벤트 핸들러 등록
+            document.addEventListener("click", onClick);
+
+            // 클릭 이벤트 핸들러 정의
+            function onClick(event) {
+              // 클릭된 객체가 로봇 모델인지 확인
+              const intersects = getIntersects(event.clientX, event.clientY);
+              if (
+                intersects.length > 0 &&
+                intersects[0].object === robot_model
+              ) {
+                // 로봇 모델의 크기를 3배로 확대
+                robot_model.scale.multiplyScalar(3.0);
+              }
+            }
+            // AnimationClip 객체의 트랙(iteration)에 대해 반복
+            animationClip.tracks.forEach((track) => {
+              // track.name에 따라 위치와 회전 정보 추출
+              if (track.name.includes("position")) {
+                robot_positions.push(track.values);
+              } else if (track.name.includes("quaternion")) {
+                robot_rotations.push(track.values);
+              }
+            });
+
+            // 마우스 포인터와의 교차 여부를 반환하는 함수
+            function getIntersects(clientX, clientY) {
+              const mouse = new THREE.Vector2();
+              const raycaster = new THREE.Raycaster();
+
+              // 마우스 좌표를 WebGL 좌표로 변환
+              mouse.x = (clientX / window.innerWidth) * 2 - 1;
+              mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+
+              // 렌더러와 카메라에 레이캐스터 설정
+              raycaster.setFromCamera(mouse, camera);
+
+              // 로봇 모델과의 교차 여부 검사
+              const intersects = raycaster.intersectObject(robot_model, true);
+
+              return intersects;
+            }
+
+            //////////////////////////////////////////////////////////
+
+            // gltf.animations 배열에 대해 반복
+            gltf.animations.forEach((animationClip) => {
+              // 원하는 duration 값으로 설정
+              animationClip.duration = 10.0; // 예시로 10.0으로 설정
+            });
+
+            if (gltf.animations && gltf.animations.length > 0) {
+              const mixer = new THREE.AnimationMixer(robot_model);
+
+              // 각 채널에 대한 AnimationAction 생성
+              const actions = gltf.animations.map((animationClip) => {
+                const action = mixer.clipAction(animationClip);
+                action.loop = THREE.LoopRepeat;
+                return action;
+              });
+
+              // 모든 AnimationAction를 함께 재생
+              actions.forEach((action) => {
+                action.play();
+              });
+
+              robot_model.animationMixer = mixer;
+            }
+
+            scene.add(robot_model);
+          },
+          undefined,
+          function (error) {
+            console.error(error);
+          }
+        );
+        /*
+        //커피머신
+        model_loader.load("gltfs/coffee/scene.gltf", function (gltf) {
+          const model = gltf.scene;
+          model.scale.set(2, 2, 2);
+          model.position.set(0, 0, 0);
+          //model.rotation.y = -1.25;
+          scene.add(model);
+        });
+        */
+        {
+          // 빛\
+          const color = 0xffffff;
+          const intensity = 1;
+          const light = new THREE.DirectionalLight(0xffffff, 0.7);
+          light.castShadow = true;
+          light.position.set(0, 10, 0);
+          light.target.position.set(-5, 0, 0);
+          scene.add(light);
+          scene.add(light.target);
+        }
+
+        // 색상과 세기(인텐시티)를 설정하여 주변 조명을 생성합니다.
+        const ambientLight = new THREE.AmbientLight(0x404040); // 필요에 따라 색상을 조정합니다.
+        ambientLight.intensity = 0.5; // 필요에 따라 세기(인텐시티)를 조정합니다.
+
+        // 주변 조명을 씬에 추가합니다.
+        scene.add(ambientLight);
+
+        const pointLight = new THREE.PointLight(0xffffff, 1, 100);
+        pointLight.position.set(0, 10, 0);
+        scene.add(pointLight);
+
+        const spotLight = new THREE.SpotLight(0xffffff, 1);
+        spotLight.position.set(-15, 20, 30);
+        spotLight.target.position.set(-25, 0, 40);
+        scene.add(spotLight);
+        scene.add(spotLight.target);
+
+        const spotLight2 = new THREE.SpotLight(0xffffff, 1);
+        spotLight.position.set(25, 20, 30);
+        spotLight.target.position.set(33, 0, 39);
+        scene.add(spotLight);
+        scene.add(spotLight.target);
+
+        const hemisphereLight = new THREE.HemisphereLight(
+          0xaaaaaa,
+          0x000000,
+          0.9
+        );
+        scene.add(hemisphereLight);
+
+        const spotLightAnimation = animateSpotlight(
+          spotLight,
+          spotLight.target,
+          10,
+          0.5
+        );
+
+        document
+          .getElementById("webgl-output")
+          .appendChild(renderer.domElement);
+        render();
+
+        function resizeRendererToDisplaySize(renderer) {
+          const canvas = renderer.domElement;
+          const width = canvas.clientWidth;
+          const height = canvas.clientHeight;
+          const needResize = canvas.width !== width || canvas.height !== height;
+          if (needResize) {
+            renderer.setSize(width, height, false);
+          }
+          return needResize;
+        }
+
+        // 곡선 객체 추가
+        createCurveObject();
+
+        // 표면 객체 추가
+        createSurfaceObject();
+
+        document.addEventListener("mousedown", onDocumentMouseDown, false);
+
+        const dogSound = new Audio("MP3/dog.mp3");
+
+        function onClickShiba(event) {
+          mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+          mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+          raycaster.setFromCamera(mouse, camera);
+
+          const intersects = raycaster.intersectObjects([shibaModel], true);
+
+          if (intersects.length > 0) {
+            dogSound.play();
+          }
+        }
+
+        const treeSound = new Audio("MP3/LastChristmas.mp3");
+
+        function onClicktree(event) {
+          mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+          mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+          raycaster.setFromCamera(mouse, camera);
+
+          const intersects = raycaster.intersectObjects([treemodel], true);
+
+          if (intersects.length > 0) {
+            treeSound.play();
+          }
+        }
+
+        // 회전 애니메이션을 위한 변수
+        let rotationSpeed = 0.005;
+        function animate() {
+          renderer.outputEncoding = THREE.sRGBEncoding;
+          renderer.render(scene, camera);
+          // 추가: 모델을 자유롭게 회전시키는 코드
+          if (robot_model) {
+            robot_model.rotation.y += rotationSpeed;
+          }
+
+          renderer.outputEncoding = THREE.sRGBEncoding;
+          renderer.render(scene, camera);
+          if (robot_mixer) {
+            robot_mixer.update(0.0167); // 60fps 업데이트
+          }
+
+          // 애니메이션을 여기서 재생
+          if (animationAction) {
+            animationAction.play();
+          }
+
+          requestAnimationFrame(animate);
+          controls.update(); // 컨트롤러 업데이트
+        }
+
+        function render() {
+          if (resizeRendererToDisplaySize(renderer)) {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+          }
+          controls.update(); // 컨트롤러 업데이트
+          renderer.render(scene, camera);
+
+          // 광원 애니메이션 업데이트 실행
+          spotLightAnimation();
+
+          requestAnimationFrame(render);
+        }
+
+        render();
+        animate();
+      }
+      main();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>과제1_2021041023_김문기</title>
+    <script src="./three.js"></script>
+    <script src="./dat.gui.js"></script>
+    <script src="./OrbitControls.js"></script>
+    <script src="./GLTFLoader.js"></script>
+    <script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="webgl-output"></div>
+    <script type="module">
+      function main() {
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setClearColor(new THREE.Color(0x000000));
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+
+        // default 값
+        const fov = 100;
+        const aspect = 2; // the canvas default
+        const near = 0.1;
+        const far = 100;
+
+        // 카메라 변수 선언 및 위치 설정
+        const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+        camera.position.set(0, 10, 20);
+        //camera.position.set(0, height, y_planesize);
+        class MinMaxGUIHelper {
+          // near 속성과 far 속성을 제어해줄 class
+          constructor(obj, minProp, maxProp, minDif) {
+            this.obj = obj;
+            this.minProp = minProp;
+            this.maxProp = maxProp;
+            this.minDif = minDif;
+          }
+          get min() {
+            return this.obj[this.minProp];
+          }
+          set min(v) {
+            this.obj[this.minProp] = v;
+            this.obj[this.maxProp] = Math.max(
+              this.obj[this.maxProp],
+              v + this.minDif
+            );
+          }
+          get max() {
+            return this.obj[this.maxProp];
+          }
+          set max(v) {
+            this.obj[this.maxProp] = v;
+            this.min = this.min; // this will call the min setter
+          }
+        }
+
+        function updateCamera() {
+          // 카메라 투영 매트릭스를 업데이트
+          camera.updateProjectionMatrix();
+        }
+
+        // 카메라의 속성을 변경할 때마다 업데이트
+        const gui = new dat.GUI();
+        gui.add(camera, "fov", 1, 180).onChange(updateCamera);
+        const minMaxGUIHelper = new MinMaxGUIHelper(camera, "near", "far", 0.1);
+        gui
+          .add(minMaxGUIHelper, "min", 0.1, 50, 0.1)
+          .name("near")
+          .onChange(updateCamera);
+        gui
+          .add(minMaxGUIHelper, "max", 0.1, 50, 0.1)
+          .name("far")
+          .onChange(updateCamera);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 5, 0);
+        controls.update();
+
+        function handleKeyboardInput() {
+          window.addEventListener("keydown", (event) => {
+            switch (event.code) {
+              case "KeyW":
+                camera.position.z -= 1;
+                break;
+              case "KeyS":
+                camera.position.z += 1;
+                break;
+              case "KeyA":
+                camera.position.x -= 1;
+                break;
+              case "KeyD":
+                camera.position.x += 1;
+                break;
+            }
+          });
+        }
+
+        handleKeyboardInput();
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color("black"); // 배경
+
+        //  판
+        var x_planesize = 80;
+        var y_planesize = 110;
+        var height = 30;
+        {
+          const loader = new THREE.TextureLoader();
+          const texture = loader.load("resources_textures/marble.jpg");
+          texture.wrapS = THREE.RepeatWrapping; // 랩핑 모드 -> texture를 무한으로 반복
+          texture.wrapT = THREE.RepeatWrapping;
+          texture.magFilter = THREE.NearestFilter; // 특정 텍스처 좌표와 가장 가까운 텍스쳐 요소의 값 리턴
+          const repeats = x_planesize / 2;
+          texture.repeat.set(repeats, repeats);
+
+          const planeGeo = new THREE.PlaneGeometry(x_planesize, y_planesize);
+          const planeMat = new THREE.MeshPhongMaterial({
+            map: texture,
+            side: THREE.DoubleSide,
+          });
+          const mesh = new THREE.Mesh(planeGeo, planeMat);
+          mesh.rotation.x = Math.PI * -0.5;
+          scene.add(mesh);
+        }
+        //xyz도우미 (도현이형의 선물 ㄷㄷ)
+        {
+          const axesHelper = new THREE.AxesHelper();
+          scene.add(axesHelper);
+        }
+
+        //벽세우기 도현이형이랑 정면벽
+        {
+          const loader = new THREE.TextureLoader();
+          loader.load(
+            "resources_textures/high-angle-beautiful-buildings-nighttime.jpg",
+            function (texture) {
+              const PlaneGeo = new THREE.PlaneGeometry(x_planesize, height);
+              const PlaneMat = new THREE.MeshBasicMaterial({ map: texture }); // 이미지를 텍스처로 설정
+              const mesh = new THREE.Mesh(PlaneGeo, PlaneMat);
+              mesh.position.set(0, height / 2, -y_planesize / 2);
+              scene.add(mesh);
+            }
+          );
+        }
+
+        //벽세우기 도현이형이랑2 왼벽
+        {
+          const loader = new THREE.TextureLoader();
+          loader.load("resources_textures/white_wall.jpg", function (texture) {
+            const PlaneGeo = new THREE.PlaneGeometry(y_planesize, height);
+            const PlaneMat = new THREE.MeshBasicMaterial({ map: texture });
+            const mesh = new THREE.Mesh(PlaneGeo, PlaneMat);
+            mesh.position.set(x_planesize / 2, height / 2, 0);
+            mesh.rotation.y = Math.PI * -0.5;
+            scene.add(mesh);
+          });
+        }
+
+        //벽세우기 도현이형이랑2 오른벽
+        {
+          const loader = new THREE.TextureLoader();
+          loader.load("resources_textures/white_wall.jpg", function (texture) {
+            const PlaneGeo = new THREE.PlaneGeometry(y_planesize, height);
+            const PlaneMat = new THREE.MeshBasicMaterial({ map: texture });
+            const mesh = new THREE.Mesh(PlaneGeo, PlaneMat);
+            mesh.position.set(-x_planesize / 2, height / 2, 0);
+            mesh.rotation.y = Math.PI * 0.5;
+            scene.add(mesh);
+          });
+        }
+
+        // 천장 추가
+        {
+          const loader = new THREE.TextureLoader();
+          loader.load(
+            "resources_textures/ceiling_5lighting_circles.jpg",
+            function (texture) {
+              const ceilingGeo = new THREE.PlaneGeometry(
+                x_planesize,
+                y_planesize
+              );
+              const ceilingMat = new THREE.MeshBasicMaterial({
+                map: texture, // 텍스처를 설정하여 이미지 표시
+                //side: THREE.DoubleSide, // 천장을 양면으로 표시
+              });
+              const ceilingMesh = new THREE.Mesh(ceilingGeo, ceilingMat);
+              ceilingMesh.position.set(0, height, 0);
+              ceilingMesh.rotation.x = Math.PI * 0.5; // 천장이 바닥을 향하도록 회전
+              scene.add(ceilingMesh);
+            }
+          );
+        }
+
+        //슈퍼카
+        const loader = new THREE.GLTFLoader();
+        loader.load("car1/scene.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(2, 2, 2);
+          model.position.set(x_planesize / 2 - 11, 2.2, 40);
+          model.rotation.y = Math.PI * 0.5;
+          scene.add(model);
+        });
+        /*
+        //람보르기니 1
+        const loader = new THREE.GLTFLoader();
+        loader.load("./resources_gltf/car4.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(2, 2, 2);
+          model.position.set(x_planesize / 2 - 11, 2.2, 25);
+          model.rotation.y = Math.PI * 0.5;
+          scene.add(model);
+        });
+        */
+        //컴퓨터 없고 널은 책상
+        const loader1 = new THREE.GLTFLoader();
+        loader.load("./resources_gltf/desk8.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(13, 13, 13);
+          model.position.set(2, 0, -31);
+          model.rotation.y = Math.PI * 1;
+          scene.add(model);
+        });
+
+        /*
+        //굵은 책상
+        const loader2 = new THREE.GLTFLoader();
+        loader.load("./resources_gltf/desk9.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(4, 4, 4);
+          model.position.set(2, 8, -34);
+          model.rotation.y = Math.PI * 1;
+          scene.add(model);
+        });
+        */
+        //컴퓨터 아이맥
+        const loader3 = new THREE.GLTFLoader();
+        loader.load("./resources_gltf/iMAC.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(0.1, 0.1, 0.1);
+          model.position.set(0, 7, -31);
+          model.rotation.y = Math.PI * 1;
+          scene.add(model);
+        });
+        //의자
+        const loader4 = new THREE.GLTFLoader();
+        loader.load("./resources_gltf/chair4.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(0.1, 0.1, 0.1);
+          model.position.set(7, 0, -37);
+          //model.rotation.y = Math.PI * 0.3;
+          scene.add(model);
+        });
+        //화분 1
+        const loader5 = new THREE.GLTFLoader();
+        loader.load("./resources_gltf/pot.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(0.01, 0.01, 0.01);
+          model.position.set(35, 0, -50);
+          //model.rotation.y = Math.PI * 0.3;
+          scene.add(model);
+        });
+        //화분 2
+        const loader6 = new THREE.GLTFLoader();
+        loader.load("./resources_gltf/pot2.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(0.2, 0.2, 0.2);
+          model.position.set(-35, 0, -50);
+          //model.rotation.y = Math.PI * 0.3;
+          scene.add(model);
+        });
+
+        //화분 3
+        const loader7 = new THREE.GLTFLoader();
+        loader.load("./resources_gltf/pot3.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(0.02, 0.02, 0.02);
+          model.position.set(27, 0, -50);
+          //model.rotation.y = Math.PI * 0.3;
+          scene.add(model);
+        });
+        //책장
+        const loader8 = new THREE.GLTFLoader();
+        loader.load("./resources_gltf/bookshelf1.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(7, 7, 7);
+          model.position.set(x_planesize / 2, 5, -35);
+          model.rotation.y = Math.PI * 0.5;
+          scene.add(model);
+        });
+
+        //로봇 1 강아지
+        const loader9 = new THREE.GLTFLoader();
+        loader.load("./resources_gltf/robot.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(0.2, 0.2, 0.2);
+          model.position.set(20, 0, -34);
+          model.rotation.y = Math.PI * 0.3;
+          scene.add(model);
+        });
+        /*
+        //로봇 2
+        const loader10 = new THREE.GLTFLoader();
+        loader.load("./resources_gltf/robot2.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(2, 2, 2);
+          model.position.set(22, 9, 15);
+          model.rotation.x = Math.PI * 0.5;
+          model.rotation.z = Math.PI * 0.5;
+          scene.add(model);
+        });
+
+        //로봇 3
+        const loader11 = new THREE.GLTFLoader();
+        loader.load("./resources_gltf/robot2.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(2, 2, 2);
+          model.position.set(22, 9, 31);
+          model.rotation.x = Math.PI * 0.5;
+          model.rotation.z = Math.PI * 0.5;
+          scene.add(model);
+        });
+        */
+        //로봇 4
+        const loader12 = new THREE.GLTFLoader();
+        loader.load("./resources_gltf/robot2.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(2, 2, 2);
+          model.position.set(29, 9, 53);
+          model.rotation.x = Math.PI * 0.5;
+          //model.rotation.z = Math.PI * 0.5;
+          scene.add(model);
+        });
+
+        //로봇 5
+        const loader13 = new THREE.GLTFLoader();
+        loader.load("./resources_gltf/robot2.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(2, 2, 2);
+          model.position.set(29, 9, 25);
+          model.rotation.x = Math.PI * 0.5;
+          model.rotation.z = Math.PI * -1;
+          scene.add(model);
+        });
+
+        //강아지
+        const loader14 = new THREE.GLTFLoader();
+        loader.load("./resources_gltf/dog.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(2, 2, 2);
+          model.position.set(-22, 0, -33);
+          //model.rotation.y = Math.PI * 0.5;
+          scene.add(model);
+        });
+        /*
+        //미팅테이블
+        const loader15 = new THREE.GLTFLoader();
+        loader.load("./resources_gltf/table2.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(10, 10, 10);
+          model.position.set(2, 0, 5);
+          model.rotation.y = Math.PI * 0.5;
+          scene.add(model);
+        });
+        */
+
+        //소파
+        const loader15 = new THREE.GLTFLoader();
+        loader.load("./resources_gltf/Sofa.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(0.01, 0.01, 0.01);
+          model.position.set(-22, 0, 5);
+          model.rotation.y = Math.PI * 0.5;
+          scene.add(model);
+        });
+
+        //소파2
+        const loader16 = new THREE.GLTFLoader();
+        loader.load("./resources_gltf/Sofa.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(0.01, 0.01, 0.01);
+          model.position.set(22, 0, 5);
+          model.rotation.y = Math.PI * -0.5;
+          scene.add(model);
+        });
+
+        //탁구장
+        const loader17 = new THREE.GLTFLoader();
+        loader.load("./resources_gltf/pingpong5.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(10, 10, 10);
+          model.position.set(-30, 0, 40);
+          model.rotation.y = Math.PI * 0.5;
+          scene.add(model);
+        });
+
+        //중간테이블
+        const loader18 = new THREE.GLTFLoader();
+        loader.load("./resources_gltf/table9.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(10, 10, 10);
+          model.position.set(0, -5, 3);
+          //model.rotation.y = Math.PI * 0.5;
+          scene.add(model);
+        });
+
+        //책장
+        const loader19 = new THREE.GLTFLoader();
+        loader.load("./resources_gltf/BookShelf.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(0.1, 0.1, 0.1);
+          model.position.set(-40, 0, -20);
+          model.rotation.y = Math.PI * 0.5;
+          scene.add(model);
+        });
+
+        //액자
+        const loader20 = new THREE.GLTFLoader();
+        loader20.load("./resources_gltf/frame2.gltf", (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(1, 1, 1);
+          model.position.set(0, 0, 0);
+          model.rotation.y = Math.PI * 0.5;
+          scene.add(model);
+        });
+
+        /*
+        // 책상 생성
+        const deskWidth = 40;
+        const deskHeight = 4;
+        const deskDepth = 15;
+
+        const deskGeometry = new THREE.BoxGeometry(
+          deskWidth,
+          deskHeight,
+          deskDepth
+        );
+        const deskMaterial = new THREE.MeshStandardMaterial({
+          color: 0x3b170b,
+        });
+        const desk = new THREE.Mesh(deskGeometry, deskMaterial);
+        desk.position.set(-2, deskHeight / 2, 4); // 중앙에 배치
+        desk.rotation.y = Math.PI * -0.5;
+        scene.add(desk);
+        */
+        {
+          // 빛
+          const color = 0xffffff;
+          const intensity = 1;
+          //const light = new THREE.DirectionalLight(color, intensity);
+          // 조명 객체에서 그림자를 비활성화하는 경우
+          const light = new THREE.DirectionalLight(0xffffff, 1);
+          light.castShadow = true; // 조명이 그림자를 생성하지 않도록 설정
+          light.position.set(0, 10, 0);
+          light.target.position.set(-5, 0, 0);
+          scene.add(light);
+          scene.add(light.target);
+        }
+
+        // 색상과 세기(인텐시티)를 설정하여 주변 조명을 생성합니다.
+        const ambientLight = new THREE.AmbientLight(0x404040); // 필요에 따라 색상을 조정합니다.
+        ambientLight.intensity = 0.5; // 필요에 따라 세기(인텐시티)를 조정합니다.
+
+        // 주변 조명을 씬에 추가합니다.
+        scene.add(ambientLight);
+
+        document
+          .getElementById("webgl-output")
+          .appendChild(renderer.domElement);
+        render();
+
+        function resizeRendererToDisplaySize(renderer) {
+          const canvas = renderer.domElement;
+          const width = canvas.clientWidth;
+          const height = canvas.clientHeight;
+          const needResize = canvas.width !== width || canvas.height !== height;
+          if (needResize) {
+            renderer.setSize(width, height, false);
+          }
+          return needResize;
+        }
+        /*
+        const spotLight = new THREE.SpotLight(0xffffff, 1, 0, Math.PI / 4, 0.5);
+        spotLight.position.set(0, 0, 0);
+        spotLight.target.position.set(x_planesize / 2 - 11, 2.2, 25);
+        spotLight.castShadow = true;
+        scene.add(spotLight);
+        scene.add(spotLight.target);
+
+        // Directional Light 1
+        const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight1.castShadow = true;
+        directionalLight1.position.set(x_planesize / 2 - 11, 2.2, 25);
+        scene.add(directionalLight1);
+
+        // Directional Light 2
+        const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight2.castShadow = true;
+        directionalLight2.position.set(0, -10, 0); // 두 번째 Directional Light의 위치를 조정할 수 있습니다.
+        scene.add(directionalLight2);
+        */
+
+        function render() {
+          if (resizeRendererToDisplaySize(renderer)) {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            controls.update(); // 컨트롤러 업데이트
+          }
+          renderer.render(scene, camera);
+          requestAnimationFrame(render);
+        }
+      }
+      main();
+    </script>
+  </body>
+</html>
