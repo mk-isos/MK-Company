@@ -5,16 +5,19 @@
 
 ## 전방 이미지
 
-![Left Forward](MK-Company/ppt%20이미지/leftForward.png)
+![leftForward](https://github.com/mk-isos/MK-Company/assets/121490196/7ee9a93a-514c-4f2d-beca-1957a5686c8a)
 
 ## 사무실 이미지
 
-![Office](MK-Company/ppt%20이미지/office.png)
+![office](https://github.com/mk-isos/MK-Company/assets/121490196/36f5ecc4-72c7-4e6b-a862-2a2fd0b18b55)
 
 ## 벽 이미지
 
-![Walls](MK-Company/ppt%20이미지/walls.png)
+![walls](https://github.com/mk-isos/MK-Company/assets/121490196/938beaac-34b3-4042-ae77-60624c01a464)
 
 ## 객체 이미지
 
-![Object](MK-Company/ppt%20이미지/object_1.png)
+![object 1](https://github.com/mk-isos/MK-Company/assets/121490196/21e741f4-caa5-4d91-8109-53bd78b0e5da)
+
+
+
